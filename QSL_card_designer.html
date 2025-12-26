@@ -1,0 +1,495 @@
+/**
+ * QSL Card Designer with ADIF import
+ * - Users can import an ADIF log file from their local system.
+ * - All record fields are available for QSL card design.
+ * - Supports a background image.
+ * - Designer UI supports adding, moving, and binding fields to ADIF values
+ * (e.g. STATION_CALLSIGN, QSO_DATE, BAND, MODE, etc.).
+ * - When a QSO is selected, the QSL card preview updates accordingly.
+ */
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QSLカードデザイナー</title>
+  <style>
+  body { font-family: 'Arial', 'Meiryo', sans-serif; background: #f8f8fc; margin: 30px; }
+  .row { display: flex; gap: 20px; }
+  .sidebar { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 1px 1px 4px #ddd; min-width: 260px;}
+  .designer { background: #fff; flex: 1; position: relative; padding: 20px; border-radius: 8px; box-shadow: 1px 1px 4px #ddd; }
+  .designer-area { position: relative; width: 500px; height: 320px; background: #eee; border: 2px dashed #bbb; border-radius: 8px; overflow: hidden; margin: 0 auto; }
+  .designer-area.has-bg { width: auto; height: auto; }
+  .bg-image-input { margin-bottom: 14px; }
+  #designerBg {position: absolute;top:0;left:0;width:100%;height:100%;z-index:0;object-fit:cover;}
+  .field { position:absolute; min-width: 48px; min-height: 21px; background: transparent; border:1px solid #888; border-radius:4px; padding:3px 9px; cursor:move; -webkit-user-select: none; user-select: none; box-sizing:border-box; overflow:hidden; text-align:center; display:flex; align-items:center; justify-content:center;}
+  .field-resize-handle { position:absolute; width:10px; height:10px; right:0; bottom:0; cursor:se-resize; background:rgba(0,0,0,0.3);}
+  .field.selected { border: 2px solid #1976d2; }
+  .fields-list {max-height:260px;overflow:auto;margin-bottom:10px;}
+  .qso-list {margin-top:20px;}
+  .qso-list select { width: 95%; }
+  .btn {background: #1976d2; color: #fff; border: none; padding: 6px 16px; border-radius: 3px; cursor: pointer; margin-top:5px;}
+</style>
+</head>
+<body>
+<h2>QSLカードデザイナー</h2>
+<div class="row">
+  <div class="sidebar">
+    <label>ADIFファイルをインポート: <input type="file" id="adifInput" accept=".adi,.adif"></label>
+    <div class="qso-list" id="qsoListDiv" style="display:none;">
+      <label>QSO選択: <br><select id="qsoSelect"></select></label>
+    </div>
+    <div id="fieldsDiv" style="margin-top:18px;display:none;">
+      <label>新しいフィールドを追加:<br>
+        <select id="fieldToAdd"></select>
+        <button type="button" class="btn" id="addFieldBtn">追加</button>
+      </label>
+      <div class="fields-list" id="addedFields"></div>
+      <div>
+        <button class="btn" onclick="resetFields()">全てのフィールドを削除</button>
+      </div>
+    </div>
+    <div style="margin-top:18px;">
+      <label>QSLカード背景画像:
+        <input type="file" class="bg-image-input" id="bgInput" accept="image/*">
+      </label>
+    </div>
+    <div style="margin-top:18px;">
+      <button class="btn" onclick="downloadAsPNG()" style="width:100%;">PNGとしてダウンロード</button>
+    </div>
+  </div>
+  <div class="designer">
+    <div style="text-align:center;"><b id="previewSize">プレビューエリア（500×320 px）</b></div>
+    <div id="designerArea" class="designer-area">
+      <!-- bg image -->
+      <img id="designerBg" alt="bg" style="display: none;" />
+      <!-- movable fields appended here -->
+    </div>
+  </div>
+</div>
+
+<script>
+let adifRecords = [];
+let adifFields = [];
+let qsoIdx = 0;
+let designerFields = []; // [{name, displayName, x, y, width, height, showName}]
+let movingFieldIdx = null, offsetX = 0, offsetY = 0;
+let resizingFieldIdx = null, resizeStartX = 0, resizeStartY = 0, startWidth = 0, startHeight = 0;
+let cardWidth = 500, cardHeight = 320;
+
+const defaultFields = [
+  { name: "STATION_CALLSIGN", label: "無線局コールサイン" },
+  { name: "QSO_DATE", label: "交信日" },
+  { name: "TIME_ON", label: "開始時刻" },
+  { name: "BAND", label: "バンド" },
+  { name: "FREQ", label: "周波数" },
+  { name: "MODE", label: "モード" },
+  { name: "OPERATOR", label: "運用者" },
+  { name: "CALL", label: "相手局" },
+  { name: "RST_SENT", label: "送信RST" },
+  { name: "RST_RCVD", label: "受信RST" },
+  { name: "GRIDSQUARE", label: "グリッドロケーター" },
+  { name: "NAME", label: "相手氏名" },
+  { name: "QTH", label: "相手住所/地域" },
+  // Add more as needed
+];
+
+// Parse ADIF (very basic but handles standard logs)
+function parseAdif(txt) {
+  txt = txt.replace(/\r/g,''); // Remove \r for easier parsing
+  const recs = [];
+  let headerEndIdx = txt.indexOf('<eoh>');
+  if (headerEndIdx === -1) return [];
+  let body = txt.slice(headerEndIdx+5).trim();
+  const recsRaw = body.split(/<eor>/i).map(x=>x.trim()).filter(Boolean);
+  for (const rraw of recsRaw) {
+    const rec = {};
+    const regex = /<(\w+):(\d+).*?>([^<]*)/gi;
+    let m;
+    while ((m=regex.exec(rraw))!==null) {
+      rec[m[1].toUpperCase()] = m[3];
+    }
+    recs.push(rec);
+  }
+  return recs;
+}
+
+function getAllFields(records) {
+  const set = new Set();
+  for(const rec of records) for(const k in rec) set.add(k);
+  return Array.from(set);
+}
+
+document.getElementById('adifInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    const txt = evt.target.result;
+    adifRecords = parseAdif(txt);
+    if (!adifRecords.length) {
+      alert("ADIFファイルに有効なQSOログが見つかりません");
+      return;
+    }
+    adifFields = getAllFields(adifRecords);
+    populateQSOList();
+    populateFieldChoices();
+    document.getElementById('qsoListDiv').style.display = '';
+    document.getElementById('fieldsDiv').style.display = '';
+    qsoIdx = 0;
+    designerFields = [];
+    resetFields();
+    updateDesignerArea();
+  };
+  reader.readAsText(file);
+});
+
+function populateQSOList() {
+  const sel = document.getElementById('qsoSelect');
+  sel.innerHTML = '';
+  adifRecords.forEach((rec, i) => {
+    let desc = (rec["STATION_CALLSIGN"]||"") + " ↔ " + (rec["CALL"]||"") + " ["+(rec["QSO_DATE"]||"")+(rec["TIME_ON"]?" "+rec["TIME_ON"]:"")+"]";
+    if (desc.trim()==="↔ []") desc = "QSO #"+(i+1);
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = desc;
+    sel.appendChild(opt);
+  });
+  sel.value = "0";
+  sel.onchange = function(){
+    qsoIdx = +sel.value;
+    updateDesignerArea();
+  };
+}
+
+function populateFieldChoices() {
+  const sel = document.getElementById('fieldToAdd');
+  sel.innerHTML = '';
+  // Prefer standard/known fields first, then rest
+  const added = new Set(designerFields.map(f=>f.name));
+  // known fields
+  for(const f of defaultFields) {
+    if (adifFields.includes(f.name) && !added.has(f.name)) {
+      const o = document.createElement('option');
+      o.value = f.name;
+      o.textContent = f.label + " ("+f.name+")";
+      sel.appendChild(o);
+    }
+  }
+  // additional fields
+  for(const name of adifFields) {
+    if (!defaultFields.find(ff=>ff.name===name) && !added.has(name)) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
+  }
+  if (sel.options.length===0) sel.innerHTML = '<option disabled>全てフィールド追加済み</option>';
+}
+
+document.getElementById('addFieldBtn').onclick = function() {
+  const sel = document.getElementById('fieldToAdd');
+  if (!sel.value) return;
+  designerFields.push({
+    name: sel.value,
+    displayName: adifFieldDisplay(sel.value),
+    x: 40+Math.random()*200,
+    y: 50+Math.random()*140,
+    width: 160,
+    height: 28,
+    showName: true
+  });
+  populateFieldChoices();
+  renderFieldList();
+  updateDesignerArea();
+};
+
+function resetFields() {
+  designerFields = [];
+  renderFieldList();
+  populateFieldChoices();
+  updateDesignerArea();
+}
+
+function adifFieldDisplay(field) {
+  const k = defaultFields.find(f=>f.name===field);
+  if (k) return k.label;
+  return field;
+}
+
+function renderFieldList() {
+  const div = document.getElementById('addedFields');
+  div.innerHTML = '';
+  designerFields.forEach((f,i)=>{
+    const dd = document.createElement('div');
+    dd.style.marginBottom = '8px';
+    const nameToggle = f.showName !== false ? 'ON' : 'OFF';
+    dd.innerHTML = `<span style="font-weight:bold;">${f.displayName}</span> (${f.name}) <button class="btn" style="padding:1px 7px;background:#4caf50;font-size:11px;" onclick="toggleFieldName(${i})">名前${nameToggle}</button> <button class="btn" style="padding:1px 7px;background:#d32f2f" onclick="removeField(${i})">削除</button>`;
+    div.appendChild(dd);
+  });
+}
+
+window.removeField = function(idx) {
+  designerFields.splice(idx,1);
+  renderFieldList();
+  populateFieldChoices();
+  updateDesignerArea();
+};
+
+window.toggleFieldName = function(idx) {
+  if (designerFields[idx]) {
+    designerFields[idx].showName = !designerFields[idx].showName;
+    renderFieldList();
+    updateDesignerArea();
+  }
+};
+
+// Background image handler
+document.getElementById('bgInput').addEventListener('change',function(e){
+  const file = e.target.files[0];
+  const img = document.getElementById('designerBg');
+  const area = document.getElementById('designerArea');
+  if (!file) {
+    img.style.display='none';
+    area.classList.remove('has-bg');
+    cardWidth = 500;
+    cardHeight = 320;
+    area.style.width = cardWidth + 'px';
+    area.style.height = cardHeight + 'px';
+    updatePreviewSize();
+    updateDesignerArea();
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  img.onload = function() {
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+    
+    // 画面サイズを取得（サイドバーとマージンを考慮）
+    const designerRect = document.querySelector('.designer').getBoundingClientRect();
+    const maxWidth = Math.min(naturalWidth, window.innerWidth - designerRect.left - 60);
+    const maxHeight = Math.min(naturalHeight, window.innerHeight - designerRect.top - 100);
+    
+    // アスペクト比を維持しながら画面サイズに収める
+    const aspectRatio = naturalWidth / naturalHeight;
+    if (naturalWidth > maxWidth || naturalHeight > maxHeight) {
+      if (maxWidth / aspectRatio <= maxHeight) {
+        cardWidth = maxWidth;
+        cardHeight = maxWidth / aspectRatio;
+      } else {
+        cardWidth = maxHeight * aspectRatio;
+        cardHeight = maxHeight;
+      }
+    } else {
+      cardWidth = naturalWidth;
+      cardHeight = naturalHeight;
+    }
+    
+    area.classList.add('has-bg');
+    area.style.width = cardWidth + 'px';
+    area.style.height = cardHeight + 'px';
+    updatePreviewSize();
+    updateDesignerArea();
+  };
+  img.src = url;
+  img.style.display='';
+});
+
+// Designer area preview (fields positioning, update on qso change)
+function updateDesignerArea() {
+  const area = document.getElementById('designerArea');
+  // Remove all .field divs
+  Array.from(area.querySelectorAll('.field')).forEach(f=>f.remove());
+  if (!adifRecords.length) return;
+  const rec = adifRecords[qsoIdx] || {};
+  // add fields
+  designerFields.forEach((f, i)=>{
+    const v = (rec[f.name]!==undefined ? rec[f.name] : "");
+    const div = document.createElement('div');
+    div.className = 'field';
+    const w = f.width || 160;
+    const h = f.height || 28;
+    div.style.left = (f.x || 0) + 'px';
+    div.style.top  = (f.y || 0) + 'px';
+    div.style.width = w + 'px';
+    div.style.height = h + 'px';
+    div.setAttribute('data-fidx', i);
+    // 名前の表示/非表示に応じて内容を変更
+    if (f.showName !== false) {
+      div.innerHTML = `<b>${f.displayName}:</b> ${v}`;
+    } else {
+      div.innerHTML = v;
+    }
+    div.tabIndex = 0;
+    div.onclick = function(ev){selectFieldForMove(i, ev)};
+    div.onmousedown = function(ev){startDragField(i, ev)};
+
+    // resize handle
+    const handle = document.createElement('div');
+    handle.className = 'field-resize-handle';
+    handle.onmousedown = function(ev){startResizeField(i, ev)};
+    div.appendChild(handle);
+
+    adjustFieldFontSize(div, h);
+    area.appendChild(div);
+  });
+  // re-select draggable behaviors
+}
+
+function selectFieldForMove(idx, ev){
+  document.querySelectorAll('.field').forEach(f=>f.classList.remove('selected'));
+  const all = document.querySelectorAll('.field');
+  if (all[idx]) all[idx].classList.add('selected');
+}
+
+function startDragField(idx, ev) {
+  ev.preventDefault();
+  // 右下ハンドルでのドラッグはリサイズ専用
+  if (ev.target.classList && ev.target.classList.contains('field-resize-handle')) {
+    return;
+  }
+  movingFieldIdx = idx;
+  const area = document.getElementById('designerArea').getBoundingClientRect();
+  const field = document.querySelectorAll('.field')[idx];
+  const fieldRect = field.getBoundingClientRect();
+  offsetX = ev.clientX - fieldRect.left;
+  offsetY = ev.clientY - fieldRect.top;
+  document.body.style.userSelect = 'none';
+}
+
+function startResizeField(idx, ev) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  resizingFieldIdx = idx;
+  const field = designerFields[idx];
+  resizeStartX = ev.clientX;
+  resizeStartY = ev.clientY;
+  startWidth = field.width || 160;
+  startHeight = field.height || 28;
+  document.body.style.userSelect = 'none';
+}
+
+document.addEventListener('mousemove', function(ev){
+  const areaRect = document.getElementById('designerArea').getBoundingClientRect();
+
+  // move
+  if(movingFieldIdx!==null) {
+    let x = ev.clientX - areaRect.left - offsetX;
+    let y = ev.clientY - areaRect.top - offsetY;
+    const f = designerFields[movingFieldIdx];
+    const fw = f.width || 160;
+    const fh = f.height || 28;
+    x = Math.max(0, Math.min(cardWidth - fw, x));
+    y = Math.max(0, Math.min(cardHeight - fh, y));
+    f.x = x;
+    f.y = y;
+    updateDesignerArea();
+    return;
+  }
+
+  // resize
+  if(resizingFieldIdx!==null) {
+    const f = designerFields[resizingFieldIdx];
+    let newW = startWidth + (ev.clientX - resizeStartX);
+    let newH = startHeight + (ev.clientY - resizeStartY);
+    newW = Math.max(48, Math.min(cardWidth - (f.x || 0), newW));
+    newH = Math.max(21, Math.min(cardHeight - (f.y || 0), newH));
+    f.width = newW;
+    f.height = newH;
+    updateDesignerArea();
+  }
+});
+
+document.addEventListener('mouseup', function(ev){
+  if (movingFieldIdx!==null || resizingFieldIdx!==null) {
+    movingFieldIdx = null;
+    resizingFieldIdx = null;
+    document.body.style.userSelect = '';
+  }
+})
+
+function adjustFieldFontSize(div, height) {
+  const h = height || div.clientHeight || 28;
+  // 高さに比例してフォントサイズを変更（制限なし）
+  const fontSize = h * 0.55;
+  div.style.fontSize = fontSize + 'px';
+}
+
+function updatePreviewSize() {
+  const sizeText = document.getElementById('previewSize');
+  sizeText.textContent = `プレビューエリア（${cardWidth}×${cardHeight} px）`;
+}
+
+// On window resize (for bg images)
+window.addEventListener('resize', updateDesignerArea);
+
+// PNG生成とダウンロード機能
+function downloadAsPNG() {
+  const area = document.getElementById('designerArea');
+  const bgImg = document.getElementById('designerBg');
+  
+  // Canvasを作成
+  const canvas = document.createElement('canvas');
+  canvas.width = cardWidth;
+  canvas.height = cardHeight;
+  const ctx = canvas.getContext('2d');
+  
+  // 背景色を白に設定（背景画像がない場合）
+  ctx.fillStyle = '#eee';
+  ctx.fillRect(0, 0, cardWidth, cardHeight);
+  
+  // 背景画像を描画
+  if (bgImg.style.display !== 'none' && bgImg.complete && bgImg.naturalWidth > 0) {
+    ctx.drawImage(bgImg, 0, 0, cardWidth, cardHeight);
+  }
+  
+  // フィールドを描画
+  if (adifRecords.length > 0) {
+    const rec = adifRecords[qsoIdx] || {};
+    designerFields.forEach((f) => {
+      const v = (rec[f.name] !== undefined ? rec[f.name] : "");
+      const w = f.width || 160;
+      const h = f.height || 28;
+      const x = f.x || 0;
+      const y = f.y || 0;
+      
+      // フィールドの背景（透明なのでスキップ）
+      // テキストを描画
+      const fontSize = h * 0.55;
+      ctx.font = `bold ${fontSize}px Arial, Meiryo, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // テキスト内容
+      let text = '';
+      if (f.showName !== false) {
+        text = `${f.displayName}: ${v}`;
+      } else {
+        text = v;
+      }
+      
+      // テキストを描画
+      ctx.fillStyle = '#000';
+      ctx.fillText(text, x + w / 2, y + h / 2);
+    });
+  }
+  
+  // PNGとしてダウンロード
+  canvas.toBlob(function(blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `qsl_card_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
+
+</script>
+</body>
+</html>
+
