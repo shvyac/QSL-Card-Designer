@@ -49,6 +49,18 @@
       <div>
         <button class="btn" onclick="resetFields()">全てのフィールドを削除</button>
       </div>
+      <div id="fieldStyleDiv" style="margin-top:18px;display:none;">
+        <div style="margin-bottom:10px;">
+          <label>フォント選択:<br>
+            <select id="fontSelect" style="width:100%;padding:4px;"></select>
+          </label>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label>色選択:</label>
+          <div id="colorPalette" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:5px;"></div>
+          <input type="color" id="colorPicker" style="width:100%;margin-top:5px;height:30px;">
+        </div>
+      </div>
     </div>
     <div style="margin-top:18px;">
       <label>QSLカード背景画像:
@@ -73,7 +85,49 @@
 let adifRecords = [];
 let adifFields = [];
 let qsoIdx = 0;
-let designerFields = []; // [{name, displayName, x, y, width, height, showName}]
+let designerFields = []; // [{name, displayName, x, y, width, height, showName, fontFamily, color}]
+let selectedFieldIdx = null; // 選択中のフィールドインデックス
+
+// フォント選択肢（30種類）
+const fontOptions = [
+  { name: 'Arial', value: 'Arial, sans-serif' },
+  { name: 'Times New Roman', value: '"Times New Roman", serif' },
+  { name: 'Courier New', value: '"Courier New", monospace' },
+  { name: 'Verdana', value: 'Verdana, sans-serif' },
+  { name: 'Georgia', value: 'Georgia, serif' },
+  { name: 'Comic Sans MS', value: '"Comic Sans MS", cursive' },
+  { name: 'Impact', value: 'Impact, sans-serif' },
+  { name: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' },
+  { name: 'Palatino', value: 'Palatino, serif' },
+  { name: 'Meiryo', value: 'Meiryo, sans-serif' },
+  { name: 'Helvetica', value: 'Helvetica, sans-serif' },
+  { name: 'Tahoma', value: 'Tahoma, sans-serif' },
+  { name: 'Lucida Console', value: '"Lucida Console", monospace' },
+  { name: 'Lucida Sans Unicode', value: '"Lucida Sans Unicode", sans-serif' },
+  { name: 'MS Sans Serif', value: '"MS Sans Serif", sans-serif' },
+  { name: 'MS Serif', value: '"MS Serif", serif' },
+  { name: 'Book Antiqua', value: '"Book Antiqua", serif' },
+  { name: 'Century Gothic', value: '"Century Gothic", sans-serif' },
+  { name: 'Franklin Gothic Medium', value: '"Franklin Gothic Medium", sans-serif' },
+  { name: 'Garamond', value: 'Garamond, serif' },
+  { name: 'Geneva', value: 'Geneva, sans-serif' },
+  { name: 'Lucida Grande', value: '"Lucida Grande", sans-serif' },
+  { name: 'Monaco', value: 'Monaco, monospace' },
+  { name: 'Optima', value: 'Optima, sans-serif' },
+  { name: 'Papyrus', value: 'Papyrus, fantasy' },
+  { name: 'Brush Script MT', value: '"Brush Script MT", cursive' },
+  { name: 'Copperplate', value: 'Copperplate, fantasy' },
+  { name: 'Didot', value: 'Didot, serif' },
+  { name: 'Futura', value: 'Futura, sans-serif' },
+  { name: 'Baskerville', value: 'Baskerville, serif' }
+];
+
+// カラーパレット
+const colorPalette = [
+  '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF',
+  '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500', '#800080',
+  '#FFC0CB', '#A52A2A', '#808080', '#008000', '#000080'
+];
 let movingFieldIdx = null, offsetX = 0, offsetY = 0;
 let resizingFieldIdx = null, resizeStartX = 0, resizeStartY = 0, startWidth = 0, startHeight = 0;
 let cardWidth = 500, cardHeight = 320;
@@ -199,7 +253,9 @@ document.getElementById('addFieldBtn').onclick = function() {
     y: 50+Math.random()*140,
     width: 160,
     height: 28,
-    showName: true
+    showName: false,
+    fontFamily: 'Arial, sans-serif',
+    color: '#000000'
   });
   populateFieldChoices();
   renderFieldList();
@@ -226,7 +282,9 @@ function renderFieldList() {
     const dd = document.createElement('div');
     dd.style.marginBottom = '8px';
     const nameToggle = f.showName !== false ? 'ON' : 'OFF';
-    dd.innerHTML = `<span style="font-weight:bold;">${f.displayName}</span> (${f.name}) <button class="btn" style="padding:1px 7px;background:#4caf50;font-size:11px;" onclick="toggleFieldName(${i})">名前${nameToggle}</button> <button class="btn" style="padding:1px 7px;background:#d32f2f" onclick="removeField(${i})">削除</button>`;
+    const isStyleable = f.name === 'STATION_CALLSIGN' || f.name === 'CALL';
+    const selectBtn = isStyleable ? `<button class="btn" style="padding:1px 7px;background:#9c27b0;font-size:11px;" onclick="selectFieldForStyle(${i})">スタイル</button>` : '';
+    dd.innerHTML = `<span style="font-weight:bold;">${f.displayName}</span> (${f.name}) <button class="btn" style="padding:1px 7px;background:#4caf50;font-size:11px;" onclick="toggleFieldName(${i})">名前${nameToggle}</button> ${selectBtn} <button class="btn" style="padding:1px 7px;background:#d32f2f" onclick="removeField(${i})">削除</button>`;
     div.appendChild(dd);
   });
 }
@@ -316,6 +374,13 @@ function updateDesignerArea() {
     div.style.width = w + 'px';
     div.style.height = h + 'px';
     div.setAttribute('data-fidx', i);
+    
+    // フォントと色を適用（無線局コールサインと相手局の場合）
+    if (f.name === 'STATION_CALLSIGN' || f.name === 'CALL') {
+      if (f.fontFamily) div.style.fontFamily = f.fontFamily;
+      if (f.color) div.style.color = f.color;
+    }
+    
     // 名前の表示/非表示に応じて内容を変更
     if (f.showName !== false) {
       div.innerHTML = `<b>${f.displayName}:</b> ${v}`;
@@ -342,6 +407,84 @@ function selectFieldForMove(idx, ev){
   document.querySelectorAll('.field').forEach(f=>f.classList.remove('selected'));
   const all = document.querySelectorAll('.field');
   if (all[idx]) all[idx].classList.add('selected');
+  selectedFieldIdx = idx;
+}
+
+function selectFieldForStyle(idx) {
+  selectedFieldIdx = idx;
+  const field = designerFields[idx];
+  if (!field || (field.name !== 'STATION_CALLSIGN' && field.name !== 'CALL')) {
+    document.getElementById('fieldStyleDiv').style.display = 'none';
+    return;
+  }
+  
+  // スタイル設定UIを表示
+  document.getElementById('fieldStyleDiv').style.display = 'block';
+  
+  // フォント選択を初期化
+  const fontSelect = document.getElementById('fontSelect');
+  fontSelect.innerHTML = '';
+  fontOptions.forEach(font => {
+    const opt = document.createElement('option');
+    opt.value = font.value;
+    opt.textContent = font.name;
+    if (field.fontFamily === font.value) opt.selected = true;
+    fontSelect.appendChild(opt);
+  });
+  
+  // カラーパレットを初期化
+  const colorPaletteDiv = document.getElementById('colorPalette');
+  colorPaletteDiv.innerHTML = '';
+  colorPalette.forEach(color => {
+    const colorBtn = document.createElement('div');
+    colorBtn.style.width = '30px';
+    colorBtn.style.height = '30px';
+    colorBtn.style.backgroundColor = color;
+    colorBtn.style.border = field.color === color ? '2px solid #1976d2' : '1px solid #ccc';
+    colorBtn.style.cursor = 'pointer';
+    colorBtn.onclick = function() { setFieldColor(color); };
+    colorPaletteDiv.appendChild(colorBtn);
+  });
+  
+  // カラーピッカーを初期化
+  document.getElementById('colorPicker').value = field.color || '#000000';
+}
+
+function setFieldFont(fontFamily) {
+  if (selectedFieldIdx !== null && designerFields[selectedFieldIdx]) {
+    designerFields[selectedFieldIdx].fontFamily = fontFamily;
+    updateDesignerArea();
+  }
+}
+
+// フォント選択とカラーピッカーのイベントリスナー（スクリプト読み込み後に設定）
+setTimeout(function() {
+  const fontSelect = document.getElementById('fontSelect');
+  if (fontSelect) {
+    fontSelect.addEventListener('change', function() {
+      setFieldFont(this.value);
+    });
+  }
+  
+  const colorPicker = document.getElementById('colorPicker');
+  if (colorPicker) {
+    colorPicker.addEventListener('change', function() {
+      setFieldColor(this.value);
+    });
+  }
+}, 100);
+
+function setFieldColor(color) {
+  if (selectedFieldIdx !== null && designerFields[selectedFieldIdx]) {
+    designerFields[selectedFieldIdx].color = color;
+    // カラーパレットの選択状態を更新
+    const colorPaletteDiv = document.getElementById('colorPalette');
+    Array.from(colorPaletteDiv.children).forEach(btn => {
+      btn.style.border = btn.style.backgroundColor === color ? '2px solid #1976d2' : '1px solid #ccc';
+    });
+    document.getElementById('colorPicker').value = color;
+    updateDesignerArea();
+  }
 }
 
 function startDragField(idx, ev) {
@@ -458,7 +601,13 @@ function downloadAsPNG() {
       // フィールドの背景（透明なのでスキップ）
       // テキストを描画
       const fontSize = h * 0.55;
-      ctx.font = `bold ${fontSize}px Arial, Meiryo, sans-serif`;
+      
+      // フォント設定（無線局コールサインと相手局の場合のみカスタムフォント）
+      let fontFamily = 'Arial, Meiryo, sans-serif';
+      if ((f.name === 'STATION_CALLSIGN' || f.name === 'CALL') && f.fontFamily) {
+        fontFamily = f.fontFamily;
+      }
+      ctx.font = `bold ${fontSize}px ${fontFamily}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
@@ -470,8 +619,14 @@ function downloadAsPNG() {
         text = v;
       }
       
+      // 色設定（無線局コールサインと相手局の場合のみカスタムカラー）
+      let textColor = '#000000';
+      if ((f.name === 'STATION_CALLSIGN' || f.name === 'CALL') && f.color) {
+        textColor = f.color;
+      }
+      
       // テキストを描画
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = textColor;
       ctx.fillText(text, x + w / 2, y + h / 2);
     });
   }
@@ -492,4 +647,3 @@ function downloadAsPNG() {
 </script>
 </body>
 </html>
-
