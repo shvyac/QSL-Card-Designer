@@ -13,7 +13,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QSLカードデザイナー</title>
+  <title>QSL Card Designer (QSLカードデザイナー)</title>
   <style>
   body { font-family: 'Arial', 'Meiryo', sans-serif; background: #f8f8fc; margin: 30px; }
   .row { display: flex; gap: 20px; }
@@ -33,46 +33,46 @@
 </style>
 </head>
 <body>
-<h2>QSLカードデザイナー</h2>
+<h2>QSL Card Designer (QSLカードデザイナー)</h2>
 <div class="row">
   <div class="sidebar">
-    <label>ADIFファイルをインポート: <input type="file" id="adifInput" accept=".adi,.adif"></label>
+    <label>Import ADIF File (ADIFファイルをインポート): <input type="file" id="adifInput" accept=".adi,.adif"></label>
     <div class="qso-list" id="qsoListDiv" style="display:none;">
-      <label>QSO選択: <br><select id="qsoSelect"></select></label>
+      <label>Select QSO (QSO選択): <br><select id="qsoSelect"></select></label>
     </div>
     <div id="fieldsDiv" style="margin-top:18px;display:none;">
-      <label>新しいフィールドを追加:<br>
+      <label>Add New Field (新しいフィールドを追加):<br>
         <select id="fieldToAdd"></select>
-        <button type="button" class="btn" id="addFieldBtn">追加</button>
+        <button type="button" class="btn" id="addFieldBtn">Add (追加)</button>
       </label>
       <div class="fields-list" id="addedFields"></div>
       <div>
-        <button class="btn" onclick="resetFields()">全てのフィールドを削除</button>
+        <button class="btn" onclick="resetFields()">Remove All Fields (全てのフィールドを削除)</button>
       </div>
       <div id="fieldStyleDiv" style="margin-top:18px;display:none;">
         <div style="margin-bottom:10px;">
-          <label>フォント選択:<br>
+          <label>Select Font (フォント選択):<br>
             <select id="fontSelect" style="width:100%;padding:4px;"></select>
           </label>
         </div>
         <div style="margin-bottom:10px;">
-          <label>色選択:</label>
+          <label>Select Color (色選択):</label>
           <div id="colorPalette" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:5px;"></div>
           <input type="color" id="colorPicker" style="width:100%;margin-top:5px;height:30px;">
         </div>
       </div>
     </div>
     <div style="margin-top:18px;">
-      <label>QSLカード背景画像:
+      <label>QSL Card Background Image (QSLカード背景画像):
         <input type="file" class="bg-image-input" id="bgInput" accept="image/*">
       </label>
     </div>
     <div style="margin-top:18px;">
-      <button class="btn" onclick="downloadAsPNG()" style="width:100%;">PNGとしてダウンロード</button>
+      <button class="btn" onclick="downloadAsPNG()" style="width:100%;">Download as PNG (PNGとしてダウンロード)</button>
     </div>
   </div>
   <div class="designer">
-    <div style="text-align:center;"><b id="previewSize">プレビューエリア（500×320 px）</b></div>
+    <div style="text-align:center;"><b id="previewSize">Preview Area (プレビューエリア) (500×320 px)</b></div>
     <div id="designerArea" class="designer-area">
       <!-- bg image -->
       <img id="designerBg" alt="bg" style="display: none;" />
@@ -133,19 +133,19 @@ let resizingFieldIdx = null, resizeStartX = 0, resizeStartY = 0, startWidth = 0,
 let cardWidth = 500, cardHeight = 320;
 
 const defaultFields = [
-  { name: "STATION_CALLSIGN", label: "無線局コールサイン" },
-  { name: "QSO_DATE", label: "交信日" },
-  { name: "TIME_ON", label: "開始時刻" },
-  { name: "BAND", label: "バンド" },
-  { name: "FREQ", label: "周波数" },
-  { name: "MODE", label: "モード" },
-  { name: "OPERATOR", label: "運用者" },
-  { name: "CALL", label: "相手局" },
-  { name: "RST_SENT", label: "送信RST" },
-  { name: "RST_RCVD", label: "受信RST" },
-  { name: "GRIDSQUARE", label: "グリッドロケーター" },
-  { name: "NAME", label: "相手氏名" },
-  { name: "QTH", label: "相手住所/地域" },
+  { name: "STATION_CALLSIGN", label: "Station Callsign (無線局コールサイン)" },
+  { name: "QSO_DATE", label: "QSO Date (交信日)" },
+  { name: "TIME_ON", label: "Start Time (開始時刻)" },
+  { name: "BAND", label: "Band (バンド)" },
+  { name: "FREQ", label: "Frequency (周波数)" },
+  { name: "MODE", label: "Mode (モード)" },
+  { name: "OPERATOR", label: "Operator (運用者)" },
+  { name: "CALL", label: "Other Station (相手局)" },
+  { name: "RST_SENT", label: "RST Sent (送信RST)" },
+  { name: "RST_RCVD", label: "RST Received (受信RST)" },
+  { name: "GRIDSQUARE", label: "Grid Locator (グリッドロケーター)" },
+  { name: "NAME", label: "Name (相手氏名)" },
+  { name: "QTH", label: "QTH/Location (相手住所/地域)" },
   // Add more as needed
 ];
 
@@ -183,7 +183,7 @@ document.getElementById('adifInput').addEventListener('change', function(e){
     const txt = evt.target.result;
     adifRecords = parseAdif(txt);
     if (!adifRecords.length) {
-      alert("ADIFファイルに有効なQSOログが見つかりません");
+      alert("No valid QSO logs found in ADIF file (ADIFファイルに有効なQSOログが見つかりません)");
       return;
     }
     adifFields = getAllFields(adifRecords);
@@ -240,7 +240,7 @@ function populateFieldChoices() {
       sel.appendChild(o);
     }
   }
-  if (sel.options.length===0) sel.innerHTML = '<option disabled>全てフィールド追加済み</option>';
+  if (sel.options.length===0) sel.innerHTML = '<option disabled>All fields added (全てフィールド追加済み)</option>';
 }
 
 document.getElementById('addFieldBtn').onclick = function() {
@@ -283,8 +283,8 @@ function renderFieldList() {
     dd.style.marginBottom = '8px';
     const nameToggle = f.showName !== false ? 'ON' : 'OFF';
     const isStyleable = f.name === 'STATION_CALLSIGN' || f.name === 'CALL';
-    const selectBtn = isStyleable ? `<button class="btn" style="padding:1px 7px;background:#9c27b0;font-size:11px;" onclick="selectFieldForStyle(${i})">スタイル</button>` : '';
-    dd.innerHTML = `<span style="font-weight:bold;">${f.displayName}</span> (${f.name}) <button class="btn" style="padding:1px 7px;background:#4caf50;font-size:11px;" onclick="toggleFieldName(${i})">名前${nameToggle}</button> ${selectBtn} <button class="btn" style="padding:1px 7px;background:#d32f2f" onclick="removeField(${i})">削除</button>`;
+    const selectBtn = isStyleable ? `<button class="btn" style="padding:1px 7px;background:#9c27b0;font-size:11px;" onclick="selectFieldForStyle(${i})">Style (スタイル)</button>` : '';
+    dd.innerHTML = `<span style="font-weight:bold;">${f.displayName}</span> (${f.name}) <button class="btn" style="padding:1px 7px;background:#4caf50;font-size:11px;" onclick="toggleFieldName(${i})">Name (名前)${nameToggle}</button> ${selectBtn} <button class="btn" style="padding:1px 7px;background:#d32f2f" onclick="removeField(${i})">Remove (削除)</button>`;
     div.appendChild(dd);
   });
 }
@@ -562,7 +562,7 @@ function adjustFieldFontSize(div, height) {
 
 function updatePreviewSize() {
   const sizeText = document.getElementById('previewSize');
-  sizeText.textContent = `プレビューエリア（${cardWidth}×${cardHeight} px）`;
+  sizeText.textContent = `Preview Area (プレビューエリア) (${cardWidth}×${cardHeight} px)`;
 }
 
 // On window resize (for bg images)
