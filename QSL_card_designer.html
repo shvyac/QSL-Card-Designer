@@ -324,15 +324,33 @@ document.getElementById('bgInput').addEventListener('change',function(e){
   img.onload = function() {
     const naturalWidth = img.naturalWidth;
     const naturalHeight = img.naturalHeight;
-    
+
+    // まず1900pxの制限を適用（アスペクト比を維持）
+    const MAX_SIZE = 1900;
+    let scaledWidth = naturalWidth;
+    let scaledHeight = naturalHeight;
+
+    if (naturalWidth > MAX_SIZE || naturalHeight > MAX_SIZE) {
+      const aspectRatio = naturalWidth / naturalHeight;
+      if (naturalWidth > naturalHeight) {
+        // 横長の場合、幅を1900pxに制限
+        scaledWidth = MAX_SIZE;
+        scaledHeight = MAX_SIZE / aspectRatio;
+      } else {
+        // 縦長の場合、高さを1900pxに制限
+        scaledHeight = MAX_SIZE;
+        scaledWidth = MAX_SIZE * aspectRatio;
+      }
+    }
+
     // 画面サイズを取得（サイドバーとマージンを考慮）
     const designerRect = document.querySelector('.designer').getBoundingClientRect();
-    const maxWidth = Math.min(naturalWidth, window.innerWidth - designerRect.left - 60);
-    const maxHeight = Math.min(naturalHeight, window.innerHeight - designerRect.top - 100);
-    
+    const maxWidth = Math.min(scaledWidth, window.innerWidth - designerRect.left - 60);
+    const maxHeight = Math.min(scaledHeight, window.innerHeight - designerRect.top - 100);
+
     // アスペクト比を維持しながら画面サイズに収める
-    const aspectRatio = naturalWidth / naturalHeight;
-    if (naturalWidth > maxWidth || naturalHeight > maxHeight) {
+    const aspectRatio = scaledWidth / scaledHeight;
+    if (scaledWidth > maxWidth || scaledHeight > maxHeight) {
       if (maxWidth / aspectRatio <= maxHeight) {
         cardWidth = maxWidth;
         cardHeight = maxWidth / aspectRatio;
@@ -341,8 +359,8 @@ document.getElementById('bgInput').addEventListener('change',function(e){
         cardHeight = maxHeight;
       }
     } else {
-      cardWidth = naturalWidth;
-      cardHeight = naturalHeight;
+      cardWidth = scaledWidth;
+      cardHeight = scaledHeight;
     }
     
     area.classList.add('has-bg');
