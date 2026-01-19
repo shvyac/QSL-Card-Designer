@@ -554,9 +554,9 @@ document.addEventListener('mouseup', function(ev){
 })
 
 function adjustFieldFontSize(div, height) {
-  const h = height || div.clientHeight || 28;
-  // 高さに比例してフォントサイズを変更（ボーダーボックスより大きく）
-  const fontSize = h * 1.2;
+  const h = height || div.clientHeight || 16;
+  // 高さに比例してフォントサイズを変更（ボーダーボックスと同じサイズ）
+  const fontSize = h * 1.0;
   div.style.fontSize = fontSize + 'px';
 }
 
@@ -594,13 +594,13 @@ function downloadAsPNG() {
     designerFields.forEach((f) => {
       const v = (rec[f.name] !== undefined ? rec[f.name] : "");
       const w = f.width || 160;
-      const h = f.height || 28;
+      const h = f.height || 16;
       const x = f.x || 0;
       const y = f.y || 0;
-      
+
       // フィールドの背景（透明なのでスキップ）
       // テキストを描画
-      const fontSize = h * 1.2;
+      const fontSize = h * 1.0;
       
       // フォント設定（無線局コールサインと相手局の場合のみカスタムフォント）
       let fontFamily = 'Arial, Meiryo, sans-serif';
