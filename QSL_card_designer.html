@@ -619,7 +619,9 @@ function adjustFieldFontSize(div, height) {
 
 function updatePreviewSize() {
   const sizeText = document.getElementById('previewSize');
-  sizeText.textContent = `Preview Area (プレビューエリア) (${cardWidth}×${cardHeight} px)`;
+  const w = Math.round(cardWidth);
+  const h = Math.round(cardHeight);
+  sizeText.textContent = `Preview Area (プレビューエリア) (${w}×${h} px)`;
 }
 
 // On window resize (for bg images)
