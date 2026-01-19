@@ -19,7 +19,7 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: /radio/QSL_card_designer/  # デプロイ先のディレクトリ（必要に応じて変更）
+        server-dir: /shvtech/radio/QSL_card_designer/  # デプロイ先のディレクトリ（必要に応じて変更）
         exclude: |
           **/.git*
           **/.git*/**
