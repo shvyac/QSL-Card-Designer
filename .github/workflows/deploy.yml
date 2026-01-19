@@ -1,4 +1,4 @@
-name: Deploy to Web Server via FTP
+name: Deploy to Web Server via FTPS
  
 on:
   push:
@@ -13,13 +13,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
  
-    - name: Deploy to FTP server
+    - name: Deploy to FTPS server
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: /shvtech/radio/QSL_card_designer/  # デプロイ先のディレクトリ（必要に応じて変更）
+        protocol: ftps
+        server-dir: /shvtech/radio/QSL_card_designer/
         exclude: |
           **/.git*
           **/.git*/**
