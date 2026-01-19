@@ -66,6 +66,11 @@
       <label>QSL Card Background Image (QSLカード背景画像):
         <input type="file" class="bg-image-input" id="bgInput" accept="image/*">
       </label>
+      <div style="margin-top:8px;">
+        <button class="btn" id="toggleSizeMode" onclick="toggleDisplayMode()" style="width:100%;font-size:11px;padding:4px;">
+          Mode: Fit to Screen (画面に合わせる)
+        </button>
+      </div>
     </div>
     <div style="margin-top:18px;">
       <button class="btn" onclick="downloadAsPNG()" style="width:100%;">Download as PNG (PNGとしてダウンロード)</button>
@@ -131,6 +136,8 @@ const colorPalette = [
 let movingFieldIdx = null, offsetX = 0, offsetY = 0;
 let resizingFieldIdx = null, resizeStartX = 0, resizeStartY = 0, startWidth = 0, startHeight = 0;
 let cardWidth = 500, cardHeight = 320;
+let displayMode = 'fit-screen'; // 'fit-screen' or 'full-size'
+let currentBgImage = null; // Store current background image
 
 const defaultFields = [
   { name: "STATION_CALLSIGN", label: "Station Callsign (無線局コールサイン)" },
@@ -321,6 +328,13 @@ document.getElementById('bgInput').addEventListener('change',function(e){
     return;
   }
   const url = URL.createObjectURL(file);
+  currentBgImage = { file: file, url: url }; // Store for mode switching
+  loadBackgroundImage(img, area);
+  img.src = url;
+  img.style.display='';
+});
+
+function loadBackgroundImage(img, area) {
   img.onload = function() {
     const naturalWidth = img.naturalWidth;
     const naturalHeight = img.naturalHeight;
@@ -343,35 +357,60 @@ document.getElementById('bgInput').addEventListener('change',function(e){
       }
     }
 
-    // 画面サイズを取得（サイドバーとマージンを考慮）
-    const designerRect = document.querySelector('.designer').getBoundingClientRect();
-    const maxWidth = Math.min(scaledWidth, window.innerWidth - designerRect.left - 60);
-    const maxHeight = Math.min(scaledHeight, window.innerHeight - designerRect.top - 100);
+    if (displayMode === 'fit-screen') {
+      // 画面サイズに合わせるモード
+      const designerRect = document.querySelector('.designer').getBoundingClientRect();
+      const maxWidth = Math.min(scaledWidth, window.innerWidth - designerRect.left - 60);
+      const maxHeight = Math.min(scaledHeight, window.innerHeight - designerRect.top - 100);
 
-    // アスペクト比を維持しながら画面サイズに収める
-    const aspectRatio = scaledWidth / scaledHeight;
-    if (scaledWidth > maxWidth || scaledHeight > maxHeight) {
-      if (maxWidth / aspectRatio <= maxHeight) {
-        cardWidth = maxWidth;
-        cardHeight = maxWidth / aspectRatio;
+      const aspectRatio = scaledWidth / scaledHeight;
+      if (scaledWidth > maxWidth || scaledHeight > maxHeight) {
+        if (maxWidth / aspectRatio <= maxHeight) {
+          cardWidth = maxWidth;
+          cardHeight = maxWidth / aspectRatio;
+        } else {
+          cardWidth = maxHeight * aspectRatio;
+          cardHeight = maxHeight;
+        }
       } else {
-        cardWidth = maxHeight * aspectRatio;
-        cardHeight = maxHeight;
+        cardWidth = scaledWidth;
+        cardHeight = scaledHeight;
       }
     } else {
+      // フルサイズモード（最大1900px）
       cardWidth = scaledWidth;
       cardHeight = scaledHeight;
     }
-    
+
     area.classList.add('has-bg');
     area.style.width = cardWidth + 'px';
     area.style.height = cardHeight + 'px';
     updatePreviewSize();
     updateDesignerArea();
   };
-  img.src = url;
-  img.style.display='';
-});
+}
+
+function toggleDisplayMode() {
+  const btn = document.getElementById('toggleSizeMode');
+  if (displayMode === 'fit-screen') {
+    displayMode = 'full-size';
+    btn.textContent = 'Mode: Full Size (フルサイズ)';
+  } else {
+    displayMode = 'fit-screen';
+    btn.textContent = 'Mode: Fit to Screen (画面に合わせる)';
+  }
+
+  // 背景画像がある場合は再読み込み
+  if (currentBgImage) {
+    const img = document.getElementById('designerBg');
+    const area = document.getElementById('designerArea');
+    loadBackgroundImage(img, area);
+    // Force reload by resetting src
+    const currentSrc = img.src;
+    img.src = '';
+    img.src = currentSrc;
+  }
+}
 
 // Designer area preview (fields positioning, update on qso change)
 function updateDesignerArea() {
