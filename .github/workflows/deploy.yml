@@ -1,4 +1,4 @@
-name: Deploy to Web Server via FTP
+name: Deploy to Web Server via SFTP
 
 on:
   push:
@@ -13,15 +13,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Deploy to FTP server
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+    - name: Deploy to SFTP server
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        server-dir: /radio/QSL_card_designer/  # デプロイ先のディレクトリ（必要に応じて変更）
-        exclude: |
-          **/.git*
-          **/.git*/**
-          **/node_modules/**
-          .github/**
+        local_path: './*'
+        remote_path: '/radio/QSL_card_designer/'
+        sftp_only: true
+        delete_remote_files: false
