@@ -1,28 +1,22 @@
 name: Deploy to Web Server via SFTP
-
 on:
   push:
     branches:
-      - main  # mainブランチにpushされたときに実行
-
+      - main
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Deploy to SFTP server
-      uses: easingthemes/ssh-deploy@main
-      with:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        REMOTE_HOST: ${{ secrets.FTP_SERVER }}
-        REMOTE_USER: ${{ secrets.FTP_USERNAME }}
-        REMOTE_PORT: 22
-        TARGET: /shvtech/
-        EXCLUDE: |
-          .git*
-          .git*/**
-          node_modules/**
-          .github/**
+      - name: Deploy to SFTP server
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST:     ${{ secrets.FTP_SERVER }}
+          REMOTE_USER:     ${{ secrets.FTP_USERNAME }}
+          REMOTE_PORT:     22
+          TARGET:          /var/www/mysite/user/pages/radio/
+          EXCLUDE:         ".git*, .git*/**, node_modules/**, .github/**"
+          ARGS:            "-rlgoDzvc --delete"
