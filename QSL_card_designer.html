@@ -408,7 +408,7 @@ function updateDesignerArea() {
   const area = document.getElementById('designerArea');
   // Remove all .field divs
   Array.from(area.querySelectorAll('.field')).forEach(f=>f.remove());
-  if (!adifRecords.length) return;
+//  if (!adifRecords.length) return;
   const rec = adifRecords[qsoIdx] || {};
   // add fields
   designerFields.forEach((f, i)=>{
