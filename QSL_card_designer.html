@@ -27,15 +27,21 @@
 <h2>QSL Card Designer (QSLカードデザイナー)</h2>
 <div class="row">
   <div class="sidebar">
-    <label>Import ADIF File (ADIFファイルをインポート): <input type="file" id="adifInput" accept=".adi,.adif"></label>
-    <div class="qso-list" id="qsoListDiv" style="display:none;">
-      <label>Select QSO (QSO選択): <br><select id="qsoSelect"></select></label>
+    <div>
+      <label>QSL Card Background Image (QSLカード背景画像):
+        <input type="file" class="bg-image-input" id="bgInput" accept="image/*">
+      </label>
+      <div style="margin-top:8px;">
+        <button class="btn" id="toggleSizeMode" onclick="toggleDisplayMode()" style="width:100%;font-size:11px;padding:4px;">
+          Mode: Fit to Screen (画面に合わせる)
+        </button>
+      </div>
+    </div>
+    <div style="margin-top:18px;">
+      <label>Import ADIF File (ADIFファイルをインポート): <input type="file" id="adifInput" accept=".adi,.adif"></label>
     </div>
     <div id="fieldsDiv" style="margin-top:18px;display:none;">
-      <label>Add New Field (新しいフィールドを追加):<br>
-        <select id="fieldToAdd"></select>
-        <button type="button" class="btn" id="addFieldBtn">Add (追加)</button>
-      </label>
+      <label>Fields (フィールド選択):</label>
       <div class="fields-list" id="addedFields"></div>
       <div>
         <button class="btn" onclick="resetFields()">Remove All Fields (全てのフィールドを削除)</button>
@@ -53,15 +59,8 @@
         </div>
       </div>
     </div>
-    <div style="margin-top:18px;">
-      <label>QSL Card Background Image (QSLカード背景画像):
-        <input type="file" class="bg-image-input" id="bgInput" accept="image/*">
-      </label>
-      <div style="margin-top:8px;">
-        <button class="btn" id="toggleSizeMode" onclick="toggleDisplayMode()" style="width:100%;font-size:11px;padding:4px;">
-          Mode: Fit to Screen (画面に合わせる)
-        </button>
-      </div>
+    <div class="qso-list" id="qsoListDiv" style="display:none;margin-top:18px;">
+      <label>Select QSO (QSO選択): <br><select id="qsoSelect"></select></label>
     </div>
     <div style="margin-top:18px;">
       <button class="btn" onclick="downloadAsPNG()" style="width:100%;">Download as PNG (PNGとしてダウンロード)</button>
@@ -186,12 +185,27 @@ document.getElementById('adifInput').addEventListener('change', function(e){
     }
     adifFields = getAllFields(adifRecords);
     populateQSOList();
-    populateFieldChoices();
     document.getElementById('qsoListDiv').style.display = '';
     document.getElementById('fieldsDiv').style.display = '';
     qsoIdx = 0;
+    // Auto-add all defaultFields that exist in the ADIF file
     designerFields = [];
-    resetFields();
+    for (const f of defaultFields) {
+      if (adifFields.includes(f.name)) {
+        designerFields.push({
+          name: f.name,
+          displayName: adifFieldDisplay(f.name),
+          x: 40 + Math.random() * 200,
+          y: 50 + Math.random() * 140,
+          width: 160,
+          height: 28,
+          showName: false,
+          fontFamily: 'Arial, sans-serif',
+          color: '#000000'
+        });
+      }
+    }
+    renderFieldChecklist();
     updateDesignerArea();
   };
   reader.readAsText(file);
@@ -215,55 +229,9 @@ function populateQSOList() {
   };
 }
 
-function populateFieldChoices() {
-  const sel = document.getElementById('fieldToAdd');
-  sel.innerHTML = '';
-  // Prefer standard/known fields first, then rest
-  const added = new Set(designerFields.map(f=>f.name));
-  // known fields
-  for(const f of defaultFields) {
-    if (adifFields.includes(f.name) && !added.has(f.name)) {
-      const o = document.createElement('option');
-      o.value = f.name;
-      o.textContent = f.label + " ("+f.name+")";
-      sel.appendChild(o);
-    }
-  }
-  // additional fields
-  for(const name of adifFields) {
-    if (!defaultFields.find(ff=>ff.name===name) && !added.has(name)) {
-      const o = document.createElement('option');
-      o.value = name;
-      o.textContent = name;
-      sel.appendChild(o);
-    }
-  }
-  if (sel.options.length===0) sel.innerHTML = '<option disabled>All fields added (全てフィールド追加済み)</option>';
-}
-
-document.getElementById('addFieldBtn').onclick = function() {
-  const sel = document.getElementById('fieldToAdd');
-  if (!sel.value) return;
-  designerFields.push({
-    name: sel.value,
-    displayName: adifFieldDisplay(sel.value),
-    x: 40+Math.random()*200,
-    y: 50+Math.random()*140,
-    width: 160,
-    height: 28,
-    showName: false,
-    fontFamily: 'Arial, sans-serif',
-    color: '#000000'
-  });
-  populateFieldChoices();
-  renderFieldList();
-  updateDesignerArea();
-};
-
 function resetFields() {
   designerFields = [];
-  renderFieldList();
-  populateFieldChoices();
+  renderFieldChecklist();
   updateDesignerArea();
 }
 
@@ -273,34 +241,85 @@ function adifFieldDisplay(field) {
   return field;
 }
 
-function renderFieldList() {
+function renderFieldChecklist() {
   const div = document.getElementById('addedFields');
   div.innerHTML = '';
-  designerFields.forEach((f,i)=>{
-    const dd = document.createElement('div');
-    dd.style.marginBottom = '8px';
-    const nameToggle = f.showName !== false ? 'ON' : 'OFF';
-    const isStyleable = f.name === 'STATION_CALLSIGN' || f.name === 'CALL';
-    const selectBtn = isStyleable ? `<button class="btn" style="padding:1px 7px;background:#9c27b0;font-size:11px;" onclick="selectFieldForStyle(${i})">Style (スタイル)</button>` : '';
-    dd.innerHTML = `<span style="font-weight:bold;">${f.displayName}</span> (${f.name}) <button class="btn" style="padding:1px 7px;background:#4caf50;font-size:11px;" onclick="toggleFieldName(${i})">Name (名前)${nameToggle}</button> ${selectBtn} <button class="btn" style="padding:1px 7px;background:#d32f2f" onclick="removeField(${i})">Remove (削除)</button>`;
-    div.appendChild(dd);
+
+  // defaultFields that exist in ADIF first, then extra ADIF fields
+  const fieldList = [];
+  for (const f of defaultFields) {
+    if (adifFields.includes(f.name)) fieldList.push({ name: f.name, label: f.label });
+  }
+  for (const name of adifFields) {
+    if (!defaultFields.find(f => f.name === name)) fieldList.push({ name, label: name });
+  }
+
+  fieldList.forEach(f => {
+    const dfIdx = designerFields.findIndex(df => df.name === f.name);
+    const isAdded = dfIdx !== -1;
+    const designerField = isAdded ? designerFields[dfIdx] : null;
+
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:6px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = isAdded;
+    cb.onchange = function() {
+      if (this.checked) {
+        designerFields.push({
+          name: f.name,
+          displayName: adifFieldDisplay(f.name),
+          x: 40 + Math.random() * 200,
+          y: 50 + Math.random() * 140,
+          width: 160,
+          height: 28,
+          showName: false,
+          fontFamily: 'Arial, sans-serif',
+          color: '#000000'
+        });
+      } else {
+        const idx = designerFields.findIndex(df => df.name === f.name);
+        if (idx !== -1) designerFields.splice(idx, 1);
+      }
+      renderFieldChecklist();
+      updateDesignerArea();
+    };
+
+    const labelEl = document.createElement('label');
+    labelEl.style.cssText = 'flex:1;font-weight:bold;font-size:13px;';
+    labelEl.textContent = f.label || f.name;
+
+    row.appendChild(cb);
+    row.appendChild(labelEl);
+
+    if (isAdded && designerField) {
+      const nameBtn = document.createElement('button');
+      nameBtn.className = 'btn';
+      nameBtn.style.cssText = 'padding:1px 7px;background:#4caf50;font-size:11px;';
+      nameBtn.textContent = 'Name (名前)' + (designerField.showName !== false ? 'ON' : 'OFF');
+      nameBtn.onclick = function() {
+        designerField.showName = !designerField.showName;
+        renderFieldChecklist();
+        updateDesignerArea();
+      };
+      row.appendChild(nameBtn);
+
+      if (f.name === 'STATION_CALLSIGN' || f.name === 'CALL') {
+        const styleBtn = document.createElement('button');
+        styleBtn.className = 'btn';
+        styleBtn.style.cssText = 'padding:1px 7px;background:#9c27b0;font-size:11px;';
+        styleBtn.textContent = 'Style (スタイル)';
+        styleBtn.onclick = function() {
+          selectFieldForStyle(designerFields.findIndex(df => df.name === f.name));
+        };
+        row.appendChild(styleBtn);
+      }
+    }
+
+    div.appendChild(row);
   });
 }
-
-window.removeField = function(idx) {
-  designerFields.splice(idx,1);
-  renderFieldList();
-  populateFieldChoices();
-  updateDesignerArea();
-};
-
-window.toggleFieldName = function(idx) {
-  if (designerFields[idx]) {
-    designerFields[idx].showName = !designerFields[idx].showName;
-    renderFieldList();
-    updateDesignerArea();
-  }
-};
 
 // Background image handler
 document.getElementById('bgInput').addEventListener('change',function(e){
