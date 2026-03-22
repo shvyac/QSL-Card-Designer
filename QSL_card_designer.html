@@ -31,11 +31,6 @@
       <label>QSL Card Background Image (QSLカード背景画像):
         <input type="file" class="bg-image-input" id="bgInput" accept="image/*">
       </label>
-      <div style="margin-top:8px;">
-        <button class="btn" id="toggleSizeMode" onclick="toggleDisplayMode()" style="width:100%;font-size:11px;padding:4px;">
-          Mode: Fit to Screen (画面に合わせる)
-        </button>
-      </div>
     </div>
     <div style="margin-top:18px;">
       <label>Import ADIF File (ADIFファイルをインポート): <input type="file" id="adifInput" accept=".adi,.adif"></label>
@@ -62,9 +57,6 @@
     <div class="qso-list" id="qsoListDiv" style="display:none;margin-top:18px;">
       <label>Select QSO (QSO選択): <br><select id="qsoSelect"></select></label>
     </div>
-    <div style="margin-top:18px;">
-      <button class="btn" onclick="downloadAsPNG()" style="width:100%;">Download as PNG (PNGとしてダウンロード)</button>
-    </div>
   </div>
   <div class="designer">
     <div style="text-align:center;"><b id="previewSize">Preview Area (プレビューエリア) (500×320 px)</b></div>
@@ -72,6 +64,12 @@
       <!-- bg image -->
       <img id="designerBg" alt="bg" style="display: none;" />
       <!-- movable fields appended here -->
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px;">
+      <button class="btn" id="toggleSizeMode" onclick="toggleDisplayMode()" style="flex:1;font-size:11px;padding:6px;">
+        Mode: Fit to Screen (画面に合わせる)
+      </button>
+      <button class="btn" onclick="downloadAsPNG()" style="flex:1;">Download as PNG (PNGとしてダウンロード)</button>
     </div>
   </div>
 </div>
@@ -125,7 +123,8 @@ const colorPalette = [
 ];
 let movingFieldIdx = null, offsetX = 0, offsetY = 0;
 let resizingFieldIdx = null, resizeStartX = 0, resizeStartY = 0, startWidth = 0, startHeight = 0;
-let cardWidth = 500, cardHeight = 320;
+let cardWidth = 500, cardHeight = 320;       // preview (screen) dimensions
+let fullCardWidth = 500, fullCardHeight = 320; // full-resolution output dimensions
 let displayMode = 'fit-screen'; // 'fit-screen' or 'full-size'
 let currentBgImage = null; // Store current background image
 
@@ -331,6 +330,8 @@ document.getElementById('bgInput').addEventListener('change',function(e){
     area.classList.remove('has-bg');
     cardWidth = 500;
     cardHeight = 320;
+    fullCardWidth = 500;
+    fullCardHeight = 320;
     area.style.width = cardWidth + 'px';
     area.style.height = cardHeight + 'px';
     updatePreviewSize();
@@ -366,6 +367,10 @@ function loadBackgroundImage(img, area) {
         scaledWidth = MAX_SIZE * aspectRatio;
       }
     }
+
+    // Always store full-resolution dimensions for PNG export
+    fullCardWidth = scaledWidth;
+    fullCardHeight = scaledHeight;
 
     if (displayMode === 'fit-screen') {
       // 画面サイズに合わせるモード
@@ -631,7 +636,10 @@ function updatePreviewSize() {
   const sizeText = document.getElementById('previewSize');
   const w = Math.round(cardWidth);
   const h = Math.round(cardHeight);
-  sizeText.textContent = `Preview Area (プレビューエリア) (${w}×${h} px)`;
+  const fw = Math.round(fullCardWidth);
+  const fh = Math.round(fullCardHeight);
+  const suffix = (fw !== w || fh !== h) ? ` → Output: ${fw}×${fh} px` : '';
+  sizeText.textContent = `Preview Area (プレビューエリア) (${w}×${h} px)${suffix}`;
 }
 
 // On window resize (for bg images)
@@ -643,29 +651,33 @@ async function downloadAsPNG() {
   const area = document.getElementById('designerArea');
   const bgImg = document.getElementById('designerBg');
   
-  // Canvasを作成
+  // Canvasを作成（フル解像度で出力）
   const canvas = document.createElement('canvas');
-  canvas.width = cardWidth;
-  canvas.height = cardHeight;
+  canvas.width = fullCardWidth;
+  canvas.height = fullCardHeight;
   const ctx = canvas.getContext('2d');
-  
+
+  // Scale factor from preview size to full output size
+  const scaleX = fullCardWidth / cardWidth;
+  const scaleY = fullCardHeight / cardHeight;
+
   // 背景色を白に設定（背景画像がない場合）
   ctx.fillStyle = '#eee';
-  ctx.fillRect(0, 0, cardWidth, cardHeight);
-  
+  ctx.fillRect(0, 0, fullCardWidth, fullCardHeight);
+
   // 背景画像を描画
   if (bgImg.style.display !== 'none' && bgImg.complete && bgImg.naturalWidth > 0) {
-    ctx.drawImage(bgImg, 0, 0, cardWidth, cardHeight);
+    ctx.drawImage(bgImg, 0, 0, fullCardWidth, fullCardHeight);
   }
-  
-  // フィールドを描画
+
+  // フィールドを描画（プレビュー座標をフル解像度にスケール）
   const rec = adifRecords[qsoIdx] || {};
   designerFields.forEach((f) => {
     const v = (rec[f.name] !== undefined ? rec[f.name] : "");
-    const w = f.width || 160;
-    const h = f.height || 16;
-    const x = f.x || 0;
-    const y = f.y || 0;
+    const w = (f.width || 160) * scaleX;
+    const h = (f.height || 16) * scaleY;
+    const x = (f.x || 0) * scaleX;
+    const y = (f.y || 0) * scaleY;
 
     // フィールドの背景（透明なのでスキップ）
     // テキストを描画
