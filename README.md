@@ -6,8 +6,7 @@ A web-based tool for amateur radio operators to design and create custom QSL car
 
 ## Demo (デモ)
 
-**Live Demo**: https://dream.shvtech.com/radio/QSL_card_designer.html
-
+**Live Demo**: https://dream.shvtech.com/our-works/radio/QSL_card_designer.html
 ## Screenshots (スクリーンショット)
 
 <!-- TODO: Add screenshots here -->
